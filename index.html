@@ -198,27 +198,131 @@
       border-radius: 12px;
       padding: 20px;
       width: 90%;
-      max-width: 500px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      max-width: 500px; /* Ограничим ширину модалки на десктопах */
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
       text-align: left;
+      animation: fadeIn 0.3s ease-out;
     }
+
+    .admin-modal-content h3 {
+      color: #1a1a1a;
+      margin-top: 0;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .admin-modal-content label {
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #555;
+    }
+
     .admin-modal-content textarea {
-      height: 100px;
       margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 16px;
+      width: calc(100% - 20px); /* Учитываем padding */
+      box-sizing: border-box;
     }
+
+    .admin-modal-content .color-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
     .admin-modal-content .color-options button {
-      margin-right: 8px;
-      margin-bottom: 8px;
+      padding: 10px 15px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s, border-color 0.2s;
+      min-width: 90px;
+      box-sizing: border-box;
     }
+
+    .admin-modal-content .color-options button:hover {
+      border-color: #007aff;
+    }
+
+    .admin-modal-content .color-options button.green {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    .admin-modal-content .color-options button.red {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .admin-modal-content .color-options button.reset {
+      background-color: #f0f0f0;
+      color: #333;
+    }
+
     .admin-modal-content .btn-group {
       display: flex;
       justify-content: flex-end;
       gap: 10px;
       margin-top: 20px;
     }
-    .admin-modal-content .btn-group .btn {
-      width: auto;
-      padding: 10px 20px;
+
+    .admin-modal-content .btn {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: background-color 0.2s;
+    }
+
+    .admin-modal-content .btn-danger {
+      background-color: #ff3b30;
+      color: white;
+    }
+
+    .admin-modal-content .btn-danger:hover {
+      background-color: #cc2b20;
+    }
+
+    .admin-modal-content .btn:not(.btn-danger) {
+      background-color: #007aff;
+      color: white;
+    }
+
+    .admin-modal-content .btn:not(.btn-danger):hover {
+      background-color: #0056b3;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Media queries для адаптивности */
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+      .container {
+        padding: 15px;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .admin-modal-content {
+        width: 95%;
+        max-width: 95%;
+        padding: 15px;
+      }
+      .admin-modal-content .color-options button {
+        flex-grow: 1;
+      }
     }
   </style>
 </head>
