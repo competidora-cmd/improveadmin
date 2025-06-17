@@ -234,9 +234,17 @@
     </div>
 
     <div class="section" id="messages-admin-container">
-      <p>Выберите диалог, чтобы просмотреть сообщения.</p>
+      <div style="margin-bottom: 15px;">
+        <label for="admin-view-participant-select">Отображать справа (как 'мои'):</label>
+        <select id="admin-view-participant-select">
+          <option value="">Выберите участника</option>
+        </select>
+      </div>
+      <div id="admin-messages-list"></div>
     </div>
   </div>
+
+  <div id="admin-overlay-modal" style="display: none;"></div>
 
   <script type="module" src="./script.js"></script>
 </body>
