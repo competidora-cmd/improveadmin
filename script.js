@@ -78,34 +78,40 @@ function renderMessagesForAdmin(dialogId) {
   }
 
   messagesAdminContainer.innerHTML = '';
-  // Сортируем сообщения по времени отправки, если они не отсортированы
   dialog.messages.sort((a, b) => new Date(a.date) - new Date(b.date));
 
+  // Определяем, кто будет отображаться как 'свой' пользователь (справа) в админ-панели
+  // Берем первого участника в списке, чтобы всегда была одна логика выравнивания
+  const participantIds = Object.keys(dialog.participants || {});
+  const adminViewRightAlignedId = participantIds.length > 0 ? participantIds[0] : null;
+
   dialog.messages.forEach((msg, msgIndex) => {
-    // В админ-панели мы можем упростить логику 'mine', поскольку редактируем все сообщения.
-    // Но для визуальной согласованности оставим классы.
-    const isMine = (msg.from_id === 'user_admin_panel'); // Условно считаем сообщения админа 'своими'
+    const isRightAligned = (adminViewRightAlignedId && msg.from_id === adminViewRightAlignedId);
 
     const messageGroup = document.createElement('div');
     messageGroup.className = 'message-group';
-    if (isMine) {
-      messageGroup.classList.add('mine');
+    if (isRightAligned) {
+      messageGroup.classList.add('mine'); // Используем класс 'mine' для выравнивания вправо
     }
-    // Добавляем data-атрибуты для идентификации сообщения при редактировании
     messageGroup.dataset.dialogId = dialogId;
     messageGroup.dataset.msgIndex = msgIndex;
 
     const messageBubble = document.createElement('div');
     messageBubble.className = 'message-bubble';
     messageBubble.textContent = msg.text;
-    // Устанавливаем цвет текста сообщения из базы данных
-    messageBubble.style.color = msg.color || 'inherit';
-    // Если сообщение собеседника, устанавливаем фон из базы данных или белый по умолчанию
-    if (!isMine) {
+
+    // Применяем цвет фона пузыря сообщения
+    if (isRightAligned) {
+      // Для 'своих' сообщений (справа) фон синий из CSS .message-group.mine .message-bubble
+      // Цвет текста будет белым из CSS
+    } else {
+      // Для 'чужих' сообщений (слева) фон берем из msg.color или белый по умолчанию
       messageBubble.style.backgroundColor = msg.color || '#ffffff';
-      // Если цвет текста светлый, для белого фона инвертируем цвет текста для читабельности
-      if (isLightColor(msg.color || '#ffffff')) {
-          messageBubble.style.color = '#000000';
+      // Регулируем цвет текста для контраста
+      if (isLightColor(messageBubble.style.backgroundColor)) {
+        messageBubble.style.color = '#000000'; // Черный текст на светлом фоне
+      } else {
+        messageBubble.style.color = '#ffffff'; // Белый текст на темном фоне
       }
     }
 
@@ -118,25 +124,43 @@ function renderMessagesForAdmin(dialogId) {
     messageGroup.appendChild(messageTime);
     messagesAdminContainer.appendChild(messageGroup);
 
-    // Добавляем обработчик контекстного меню при клике на пузырь сообщения
+    // Добавляем обработчик для открытия модального окна редактирования по клику
     messageBubble.addEventListener('click', (e) => {
+        e.stopPropagation(); // Предотвращаем всплытие события, если есть другие слушатели
         showEditMessageModal(dialogId, msgIndex, msg); // Показываем модальное окно редактирования
     });
   });
 
   // Вспомогательная функция для определения светлоты цвета (для текста на цветном фоне)
   function isLightColor(hex) {
-      if (!hex || hex === 'inherit') return true;
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      // HSP (Highly Sensitive Pooled) equation from http://alienryderflex.com/hsp.html
+      if (!hex || hex === 'inherit') return true; // 'inherit' или пустота - считаем светлым (для черного текста)
+      // Удаляем # если есть
+      const cleanHex = hex.startsWith('#') ? hex.slice(1) : hex;
+
+      // Проверяем длину hex-кода
+      if (cleanHex.length !== 6 && cleanHex.length !== 3) {
+          console.warn("Некорректный формат HEX цвета: ", hex);
+          return true; // В случае ошибки, считаем светлым для безопасного черного текста
+      }
+      
+      let r, g, b;
+      if (cleanHex.length === 3) {
+          r = parseInt(cleanHex[0] + cleanHex[0], 16);
+          g = parseInt(cleanHex[1] + cleanHex[1], 16);
+          b = parseInt(cleanHex[2] + cleanHex[2], 16);
+      } else {
+          r = parseInt(cleanHex.slice(0, 2), 16);
+          g = parseInt(cleanHex.slice(2, 4), 16);
+          b = parseInt(cleanHex.slice(4, 6), 16);
+      }
+
+      // HSP (Highly Sensitive Pooled) уравнение для расчета воспринимаемой яркости
       const hsp = Math.sqrt(
           0.299 * (r * r) +
           0.587 * (g * g) +
           0.114 * (b * b)
       );
-      return hsp > 127.5; // Считаем цвет светлым, если HSP > 127.5
+      return hsp > 127.5; // Если яркость выше 127.5, цвет считается светлым
   }
 }
 
