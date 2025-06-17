@@ -17,15 +17,17 @@ const firebaseConfig = {
 // Инициализация Firebase
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const auth = getAuth(app);
+const auth = getAuth(app); 
 
 // ====== Глобальные переменные админки ======
 let allDialogs = []; // Все диалоги из Firebase
 let selectedDialogId = null; // ID текущего выбранного диалога
+let selectedAdminViewParticipantId = null; // ID участника, чьи сообщения отображаются справа в админ-панели
 
 // ====== Элементы DOM ======
 const dialogSelect = document.getElementById('dialog-select');
-const messagesAdminContainer = document.getElementById('messages-admin-container');
+const messagesAdminContainer = document.getElementById('admin-messages-list'); // Изменено на новый ID
+const adminViewParticipantSelect = document.getElementById('admin-view-participant-select');
 
 // ====== Загрузка и рендер списка диалогов ======
 function loadAndRenderDialogs() {
@@ -55,22 +57,50 @@ function loadAndRenderDialogs() {
 
 function populateDialogSelect() {
   dialogSelect.innerHTML = '<option value="">Выберите диалог</option>';
+  adminViewParticipantSelect.innerHTML = '<option value="">Выберите участника</option>'; // Очищаем список участников
+
   allDialogs.forEach(dialog => {
     const option = document.createElement('option');
     option.value = dialog.id;
-    // Отображаем название диалога и имя создателя (если есть)
     option.textContent = `${dialog.title || 'Без названия'} (${dialog.creatorUsername || 'Веб-пользователь'})`;
     dialogSelect.appendChild(option);
   });
-  // Если был выбран диалог ранее, пытаемся его снова выбрать
+
   if (selectedDialogId) {
     dialogSelect.value = selectedDialogId;
-    renderMessagesForAdmin(selectedDialogId);
+    populateParticipantSelect(selectedDialogId); // Заполняем участников для выбранного диалога
+  }
+}
+
+// ====== Заполнение списка участников ======
+function populateParticipantSelect(dialogId) {
+  adminViewParticipantSelect.innerHTML = '<option value="">Выберите участника</option>';
+  const dialog = allDialogs.find(d => d.id === dialogId);
+  if (dialog && dialog.participants) {
+    for (const pId in dialog.participants) {
+      const option = document.createElement('option');
+      option.value = pId; // ID участника
+      option.textContent = dialog.participants[pId]; // Имя участника
+      adminViewParticipantSelect.appendChild(option);
+    }
+    // Если выбран участник ранее, пытаемся его снова выбрать
+    if (selectedAdminViewParticipantId && dialog.participants[selectedAdminViewParticipantId]) {
+      adminViewParticipantSelect.value = selectedAdminViewParticipantId;
+      renderMessagesForAdmin(dialogId, selectedAdminViewParticipantId);
+    } else if (Object.keys(dialog.participants).length > 0) {
+        // Если нет ранее выбранного, но есть участники, выбираем первого по умолчанию
+        selectedAdminViewParticipantId = Object.keys(dialog.participants)[0];
+        adminViewParticipantSelect.value = selectedAdminViewParticipantId;
+        renderMessagesForAdmin(dialogId, selectedAdminViewParticipantId);
+    } else {
+        messagesAdminContainer.innerHTML = '<p>У этого диалога нет участников.</p>';
+        selectedAdminViewParticipantId = null;
+    }
   }
 }
 
 // ====== Рендер сообщений для админки ======
-function renderMessagesForAdmin(dialogId) {
+function renderMessagesForAdmin(dialogId, alignRightById = null) {
   const dialog = allDialogs.find(d => d.id === dialogId);
   if (!dialog || !dialog.messages || dialog.messages.length === 0) {
     messagesAdminContainer.innerHTML = '<p>Сообщений в этом диалоге нет.</p>';
@@ -80,18 +110,14 @@ function renderMessagesForAdmin(dialogId) {
   messagesAdminContainer.innerHTML = '';
   dialog.messages.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  // Определяем, кто будет отображаться как 'свой' пользователь (справа) в админ-панели
-  // Берем первого участника в списке, чтобы всегда была одна логика выравнивания
-  const participantIds = Object.keys(dialog.participants || {});
-  const adminViewRightAlignedId = participantIds.length > 0 ? participantIds[0] : null;
-
   dialog.messages.forEach((msg, msgIndex) => {
-    const isRightAligned = (adminViewRightAlignedId && msg.from_id === adminViewRightAlignedId);
+    // isRightAligned теперь зависит от выбранного участника в админ-панели
+    const isRightAligned = (alignRightById && msg.from_id === alignRightById);
 
     const messageGroup = document.createElement('div');
     messageGroup.className = 'message-group';
     if (isRightAligned) {
-      messageGroup.classList.add('mine'); // Используем класс 'mine' для выравнивания вправо
+      messageGroup.classList.add('mine'); // Используем класс 'mine' для выравнивания вправо и синего фона
     }
     messageGroup.dataset.dialogId = dialogId;
     messageGroup.dataset.msgIndex = msgIndex;
@@ -124,23 +150,19 @@ function renderMessagesForAdmin(dialogId) {
     messageGroup.appendChild(messageTime);
     messagesAdminContainer.appendChild(messageGroup);
 
-    // Добавляем обработчик для открытия модального окна редактирования по клику
     messageBubble.addEventListener('click', (e) => {
-        e.stopPropagation(); // Предотвращаем всплытие события, если есть другие слушатели
-        showEditMessageModal(dialogId, msgIndex, msg); // Показываем модальное окно редактирования
+        e.stopPropagation();
+        showEditMessageModal(dialogId, msgIndex, msg);
     });
   });
 
-  // Вспомогательная функция для определения светлоты цвета (для текста на цветном фоне)
   function isLightColor(hex) {
-      if (!hex || hex === 'inherit') return true; // 'inherit' или пустота - считаем светлым (для черного текста)
-      // Удаляем # если есть
+      if (!hex || hex === 'inherit') return true;
       const cleanHex = hex.startsWith('#') ? hex.slice(1) : hex;
 
-      // Проверяем длину hex-кода
       if (cleanHex.length !== 6 && cleanHex.length !== 3) {
           console.warn("Некорректный формат HEX цвета: ", hex);
-          return true; // В случае ошибки, считаем светлым для безопасного черного текста
+          return true;
       }
       
       let r, g, b;
@@ -154,13 +176,12 @@ function renderMessagesForAdmin(dialogId) {
           b = parseInt(cleanHex.slice(4, 6), 16);
       }
 
-      // HSP (Highly Sensitive Pooled) уравнение для расчета воспринимаемой яркости
       const hsp = Math.sqrt(
           0.299 * (r * r) +
           0.587 * (g * g) +
           0.114 * (b * b)
       );
-      return hsp > 127.5; // Если яркость выше 127.5, цвет считается светлым
+      return hsp > 127.5;
   }
 }
 
@@ -180,18 +201,18 @@ function showEditMessageModal(dialogId, msgIndex, message) {
       <h3>Редактировать сообщение</h3>
       <p><strong>От:</strong> ${editModalMessage.from}</p>
       <textarea id="edit-message-text" rows="5">${editModalMessage.text}</textarea>
-      <label>Цвет текста:</label>
+      <label>Цвет текста сообщения:</label>
       <div class="color-options">
         <button class="green" data-color="#4CAF50">Зеленый</button>
         <button class="red" data-color="#f44336">Красный</button>
         <button class="reset" data-color="#000000">Черный</button>
         <button class="reset" data-color="#FFFFFF">Белый</button>
-        <button class="reset" data-color="#007aff">Синий</button>
+        <button class="reset" data-color="inherit">По умолчанию</button>
       </div>
       <label for="edit-annotation-text">Пометка:</label>
       <textarea id="edit-annotation-text" rows="3">${editModalMessage.annotation || ''}</textarea>
       <div class="btn-group">
-        <button class="btn btn-danger" onclick="closeAdminModal()">Отмена</button>
+        <button class="btn btn-danger" id="cancel-admin-modal-btn">Отмена</button>
         <button class="btn" id="save-edited-message-btn">Сохранить</button>
       </div>
     </div>
@@ -207,7 +228,7 @@ function showEditMessageModal(dialogId, msgIndex, message) {
     btn.onclick = (e) => {
       const color = e.target.dataset.color;
       editModalMessage.color = color; // Обновляем цвет в временной копии сообщения
-      // Опционально: можно добавить предпросмотр цвета в модалке
+      // TODO: Можно добавить предпросмотр цвета в модалке, если нужно
     };
   });
 
@@ -216,11 +237,9 @@ function showEditMessageModal(dialogId, msgIndex, message) {
     const updatedText = document.getElementById('edit-message-text').value;
     const updatedAnnotation = document.getElementById('edit-annotation-text').value;
 
-    // Обновляем временную копию
     editModalMessage.text = updatedText;
     editModalMessage.annotation = updatedAnnotation;
 
-    // Отправляем изменения в Firebase
     const updates = {};
     updates[`/dialogs/${editModalDialogId}/messages/${editModalMsgIndex}/text`] = updatedText;
     updates[`/dialogs/${editModalDialogId}/messages/${editModalMsgIndex}/color`] = editModalMessage.color;
@@ -230,31 +249,40 @@ function showEditMessageModal(dialogId, msgIndex, message) {
       .then(() => {
         console.log("Сообщение успешно обновлено в Firebase!");
         closeAdminModal();
-        // Перерендеринг сообщений, чтобы показать изменения
-        renderMessagesForAdmin(editModalDialogId);
+        // Перерендеринг сообщений с учетом нового выбора участника
+        renderMessagesForAdmin(editModalDialogId, selectedAdminViewParticipantId);
       })
       .catch(error => {
         console.error("Ошибка при обновлении сообщения:", error);
         alert("Ошибка при обновлении сообщения: " + error.message);
       });
   };
+
+  // Обработчик кнопки Отмена
+  document.getElementById('cancel-admin-modal-btn').onclick = () => {
+    closeAdminModal();
+  };
 }
 
 // ====== Функции для управления модальным окном админки ======
 function showAdminModal(contentHtml) {
-  const modal = document.createElement('div');
-  modal.id = 'admin-overlay-modal'; // Уникальный ID для модалки админки
-  modal.style.cssText = `
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000; /* Выше основного модального окна */
-  `;
+  let modal = document.getElementById('admin-overlay-modal');
+  if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'admin-overlay-modal';
+      modal.style.cssText = `
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+      `;
+      document.body.appendChild(modal);
+  }
   modal.innerHTML = contentHtml;
-  document.body.appendChild(modal);
+  modal.style.display = 'flex'; // Показываем модалку
 
   modal.onclick = (e) => {
     if (e.target === modal) {
@@ -266,7 +294,8 @@ function showAdminModal(contentHtml) {
 function closeAdminModal() {
   const modal = document.getElementById('admin-overlay-modal');
   if (modal) {
-    modal.remove();
+    modal.style.display = 'none'; // Скрываем модалку
+    modal.innerHTML = ''; // Очищаем содержимое
   }
 }
 
@@ -274,9 +303,20 @@ function closeAdminModal() {
 dialogSelect.onchange = (e) => {
   selectedDialogId = e.target.value;
   if (selectedDialogId) {
-    renderMessagesForAdmin(selectedDialogId);
+    populateParticipantSelect(selectedDialogId); // Заполняем и выбираем участника
   } else {
     messagesAdminContainer.innerHTML = '<p>Выберите диалог, чтобы просмотреть сообщения.</p>';
+    adminViewParticipantSelect.innerHTML = '<option value="">Выберите участника</option>'; // Очищаем
+    selectedAdminViewParticipantId = null;
+  }
+};
+
+adminViewParticipantSelect.onchange = (e) => {
+  selectedAdminViewParticipantId = e.target.value;
+  if (selectedDialogId && selectedAdminViewParticipantId) {
+    renderMessagesForAdmin(selectedDialogId, selectedAdminViewParticipantId);
+  } else {
+    messagesAdminContainer.innerHTML = '<p>Выберите участника, чтобы просмотреть сообщения.</p>';
   }
 };
 
