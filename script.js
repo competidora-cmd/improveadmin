@@ -124,7 +124,18 @@ function renderMessagesForAdmin(dialogId, alignRightById = null) {
 
     const messageBubble = document.createElement('div');
     messageBubble.className = 'message-bubble';
-    messageBubble.textContent = msg.text;
+
+    // Добавляем имя отправителя внутри пузыря сообщения
+    const senderName = document.createElement('div');
+    senderName.className = 'message-sender';
+    senderName.textContent = msg.from; // Имя отправителя
+    messageBubble.appendChild(senderName);
+
+    // Добавляем текст сообщения
+    const messageText = document.createElement('div');
+    messageText.className = 'message-text-content'; // Добавил новый класс для текста
+    messageText.textContent = msg.text;
+    messageBubble.appendChild(messageText);
 
     // Применяем цвет фона пузыря сообщения
     if (isRightAligned) {
@@ -139,6 +150,7 @@ function renderMessagesForAdmin(dialogId, alignRightById = null) {
       } else {
         messageBubble.style.color = '#ffffff'; // Белый текст на темном фоне
       }
+      senderName.style.color = isLightColor(messageBubble.style.backgroundColor) ? '#888' : '#ccc'; // Цвет имени отправителя для чужих сообщений
     }
 
     const messageTime = document.createElement('div');
@@ -152,7 +164,7 @@ function renderMessagesForAdmin(dialogId, alignRightById = null) {
 
     messageBubble.addEventListener('click', (e) => {
         e.stopPropagation();
-        showEditMessageModal(dialogId, msgIndex, msg);
+        showEditMessageModal(dialogId, msgIndex, msg, e);
     });
   });
 
@@ -191,10 +203,41 @@ let editModalDialogId = null;
 let editModalMsgIndex = null;
 
 // ====== Показ модального окна редактирования сообщения ======
-function showEditMessageModal(dialogId, msgIndex, message) {
+function showEditMessageModal(dialogId, msgIndex, message, e) {
   editModalDialogId = dialogId;
   editModalMsgIndex = msgIndex;
   editModalMessage = { ...message }; // Копируем сообщение, чтобы не менять напрямую данные в allDialogs
+
+  // Получаем позицию кликнутого элемента
+  const rect = e.target.getBoundingClientRect();
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+  // Определение оптимальных координат для модального окна
+  let modalX = rect.right + 20; // По умолчанию справа от сообщения
+  let modalY = rect.top;
+
+  // Если модалка выходит за правую границу, перемещаем ее налево
+  const predictedModalWidth = 500; // Примерная максимальная ширина модалки
+  if (modalX + predictedModalWidth > viewportWidth - 20) {
+    modalX = rect.left - predictedModalWidth - 20; // Слева от сообщения
+    if (modalX < 20) { // Если и слева не помещается, центрируем
+        modalX = (viewportWidth - predictedModalWidth) / 2;
+    }
+  }
+
+  // Если модалка выходит за нижнюю границу, сдвигаем вверх
+  const predictedModalHeight = 350; // Примерная высота модалки
+  if (modalY + predictedModalHeight > viewportHeight - 20) {
+    modalY = viewportHeight - predictedModalHeight - 20; // Сдвигаем вверх
+    if (modalY < 20) { // Если слишком высоко, ставим в начало
+        modalY = 20;
+    }
+  }
+  
+  // Убедимся, что координаты не отрицательные
+  modalX = Math.max(20, modalX);
+  modalY = Math.max(20, modalY);
 
   const modalHtml = `
     <div class="admin-modal-content">
@@ -217,7 +260,7 @@ function showEditMessageModal(dialogId, msgIndex, message) {
       </div>
     </div>
   `;
-  showAdminModal(modalHtml);
+  showAdminModal(modalHtml, modalX, modalY);
 
   // Заполняем текущие значения в модалке
   document.getElementById('edit-message-text').value = editModalMessage.text;
@@ -265,7 +308,7 @@ function showEditMessageModal(dialogId, msgIndex, message) {
 }
 
 // ====== Функции для управления модальным окном админки ======
-function showAdminModal(contentHtml) {
+function showAdminModal(contentHtml, x = null, y = null) {
   let modal = document.getElementById('admin-overlay-modal');
   if (!modal) {
       modal = document.createElement('div');
@@ -274,17 +317,30 @@ function showAdminModal(contentHtml) {
         position: fixed;
         top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(0,0,0,0.4);
-        display: flex;
-        align-items: center;
-        justify-content: center;
         z-index: 2000;
       `;
       document.body.appendChild(modal);
   }
   modal.innerHTML = contentHtml;
-  modal.style.display = 'flex'; // Показываем модалку
+  modal.style.display = 'block'; // Показываем модалку
+
+  // Позиционируем содержимое модального окна
+  const modalContent = modal.querySelector('.admin-modal-content');
+  if (modalContent && x !== null && y !== null) {
+      modalContent.style.position = 'absolute';
+      modalContent.style.left = `${x}px`;
+      modalContent.style.top = `${y}px`;
+      modalContent.style.transform = 'none'; // Отключаем центрирование
+  } else if (modalContent) {
+      // Если координаты не переданы, центрируем по умолчанию
+      modalContent.style.position = 'absolute';
+      modalContent.style.left = '50%';
+      modalContent.style.top = '50%';
+      modalContent.style.transform = 'translate(-50%, -50%)';
+  }
 
   modal.onclick = (e) => {
+    // Закрываем модалку только если клик был по самому оверлею, а не по контенту модалки
     if (e.target === modal) {
       closeAdminModal();
     }
