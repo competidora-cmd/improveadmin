@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebas
 import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
 
-// Ваша конфигурация Firebase (та же, что и для основного приложения)
+
 const firebaseConfig = {
   apiKey: "AIzaSyDCD5MSC1-hFrXK2JD-rAkjbM4DmBTaYAo",
   authDomain: "koworking-5a698.firebaseapp.com",
@@ -78,67 +78,172 @@ function renderMessagesForAdmin(dialogId) {
   }
 
   messagesAdminContainer.innerHTML = '';
+  // Сортируем сообщения по времени отправки, если они не отсортированы
+  dialog.messages.sort((a, b) => new Date(a.date) - new Date(b.date));
+
   dialog.messages.forEach((msg, msgIndex) => {
-    const messageItem = document.createElement('div');
-    messageItem.className = 'message-item';
-    messageItem.innerHTML = `
-      <div class="meta">От: ${msg.from} (${new Date(msg.date).toLocaleString()})</div>
-      <div class="text" style="color: ${msg.color || 'inherit'};">${msg.text}</div>
-      <div class="color-buttons">
+    // В админ-панели мы можем упростить логику 'mine', поскольку редактируем все сообщения.
+    // Но для визуальной согласованности оставим классы.
+    const isMine = (msg.from_id === 'user_admin_panel'); // Условно считаем сообщения админа 'своими'
+
+    const messageGroup = document.createElement('div');
+    messageGroup.className = 'message-group';
+    if (isMine) {
+      messageGroup.classList.add('mine');
+    }
+    // Добавляем data-атрибуты для идентификации сообщения при редактировании
+    messageGroup.dataset.dialogId = dialogId;
+    messageGroup.dataset.msgIndex = msgIndex;
+
+    const messageBubble = document.createElement('div');
+    messageBubble.className = 'message-bubble';
+    messageBubble.textContent = msg.text;
+    // Устанавливаем цвет текста сообщения из базы данных
+    messageBubble.style.color = msg.color || 'inherit';
+    // Если сообщение собеседника, устанавливаем фон из базы данных или белый по умолчанию
+    if (!isMine) {
+      messageBubble.style.backgroundColor = msg.color || '#ffffff';
+      // Если цвет текста светлый, для белого фона инвертируем цвет текста для читабельности
+      if (isLightColor(msg.color || '#ffffff')) {
+          messageBubble.style.color = '#000000';
+      }
+    }
+
+    const messageTime = document.createElement('div');
+    messageTime.className = 'message-time';
+    const messageDate = new Date(msg.date);
+    messageTime.textContent = `${messageDate.getHours().toString().padStart(2, '0')}:${messageDate.getMinutes().toString().padStart(2, '0')}`;
+
+    messageGroup.appendChild(messageBubble);
+    messageGroup.appendChild(messageTime);
+    messagesAdminContainer.appendChild(messageGroup);
+
+    // Добавляем обработчик контекстного меню при клике на пузырь сообщения
+    messageBubble.addEventListener('click', (e) => {
+        showEditMessageModal(dialogId, msgIndex, msg); // Показываем модальное окно редактирования
+    });
+  });
+
+  // Вспомогательная функция для определения светлоты цвета (для текста на цветном фоне)
+  function isLightColor(hex) {
+      if (!hex || hex === 'inherit') return true;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      // HSP (Highly Sensitive Pooled) equation from http://alienryderflex.com/hsp.html
+      const hsp = Math.sqrt(
+          0.299 * (r * r) +
+          0.587 * (g * g) +
+          0.114 * (b * b)
+      );
+      return hsp > 127.5; // Считаем цвет светлым, если HSP > 127.5
+  }
+}
+
+// ====== Глобальные переменные для модалки редактирования ======
+let editModalMessage = null;
+let editModalDialogId = null;
+let editModalMsgIndex = null;
+
+// ====== Показ модального окна редактирования сообщения ======
+function showEditMessageModal(dialogId, msgIndex, message) {
+  editModalDialogId = dialogId;
+  editModalMsgIndex = msgIndex;
+  editModalMessage = { ...message }; // Копируем сообщение, чтобы не менять напрямую данные в allDialogs
+
+  const modalHtml = `
+    <div class="admin-modal-content">
+      <h3>Редактировать сообщение</h3>
+      <p><strong>От:</strong> ${editModalMessage.from}</p>
+      <textarea id="edit-message-text" rows="5">${editModalMessage.text}</textarea>
+      <label>Цвет текста:</label>
+      <div class="color-options">
         <button class="green" data-color="#4CAF50">Зеленый</button>
         <button class="red" data-color="#f44336">Красный</button>
-        <button class="reset" data-color="#ffffff">Сброс</button>
+        <button class="reset" data-color="#000000">Черный</button>
+        <button class="reset" data-color="#FFFFFF">Белый</button>
+        <button class="reset" data-color="#007aff">Синий</button>
       </div>
-      <label for="annotation-${dialogId}-${msgIndex}">Пометка:</label>
-      <textarea id="annotation-${dialogId}-${msgIndex}" rows="3" placeholder="Как стоило лучше...">${msg.annotation || ''}</textarea>
-      <button class="save-btn" data-dialog-id="${dialogId}" data-msg-index="${msgIndex}">Сохранить</button>
-    `;
-    messagesAdminContainer.appendChild(messageItem);
-  });
+      <label for="edit-annotation-text">Пометка:</label>
+      <textarea id="edit-annotation-text" rows="3">${editModalMessage.annotation || ''}</textarea>
+      <div class="btn-group">
+        <button class="btn btn-danger" onclick="closeAdminModal()">Отмена</button>
+        <button class="btn" id="save-edited-message-btn">Сохранить</button>
+      </div>
+    </div>
+  `;
+  showAdminModal(modalHtml);
 
-  // Добавляем обработчики событий для кнопок цвета и сохранения
-  messagesAdminContainer.querySelectorAll('.color-buttons button').forEach(btn => {
+  // Заполняем текущие значения в модалке
+  document.getElementById('edit-message-text').value = editModalMessage.text;
+  document.getElementById('edit-annotation-text').value = editModalMessage.annotation;
+
+  // Обработчики для кнопок цвета в модалке
+  document.querySelectorAll('.admin-modal-content .color-options button').forEach(btn => {
     btn.onclick = (e) => {
       const color = e.target.dataset.color;
-      const messageTextDiv = e.target.closest('.message-item').querySelector('.text');
-      messageTextDiv.style.color = color;
-      // Временно сохраняем выбранный цвет, чтобы при сохранении он был правильным
-      messageTextDiv.dataset.currentColor = color;
+      editModalMessage.color = color; // Обновляем цвет в временной копии сообщения
+      // Опционально: можно добавить предпросмотр цвета в модалке
     };
   });
 
-  messagesAdminContainer.querySelectorAll('.save-btn').forEach(btn => {
-    btn.onclick = (e) => {
-      const dId = e.target.dataset.dialogId;
-      const mIndex = parseInt(e.target.dataset.msgIndex);
-      const currentMessage = dialog.messages[mIndex];
+  // Обработчик сохранения
+  document.getElementById('save-edited-message-btn').onclick = () => {
+    const updatedText = document.getElementById('edit-message-text').value;
+    const updatedAnnotation = document.getElementById('edit-annotation-text').value;
 
-      const newAnnotation = document.getElementById(`annotation-${dId}-${mIndex}`).value;
-      // Получаем цвет из dataset, установленного при клике на кнопки цвета
-      const newColor = e.target.closest('.message-item').querySelector('.text').dataset.currentColor || currentMessage.color;
+    // Обновляем временную копию
+    editModalMessage.text = updatedText;
+    editModalMessage.annotation = updatedAnnotation;
 
-      // Обновляем сообщение в локальном объекте (пока не в Firebase)
-      currentMessage.annotation = newAnnotation;
-      currentMessage.color = newColor;
+    // Отправляем изменения в Firebase
+    const updates = {};
+    updates[`/dialogs/${editModalDialogId}/messages/${editModalMsgIndex}/text`] = updatedText;
+    updates[`/dialogs/${editModalDialogId}/messages/${editModalMsgIndex}/color`] = editModalMessage.color;
+    updates[`/dialogs/${editModalDialogId}/messages/${editModalMsgIndex}/annotation`] = updatedAnnotation;
 
-      // Сохраняем все сообщения обратно в Firebase для данного диалога
-      const updates = {};
-      updates[`/dialogs/${dId}/messages/${mIndex}/annotation`] = newAnnotation;
-      updates[`/dialogs/${dId}/messages/${mIndex}/color`] = newColor;
+    update(ref(db), updates)
+      .then(() => {
+        console.log("Сообщение успешно обновлено в Firebase!");
+        closeAdminModal();
+        // Перерендеринг сообщений, чтобы показать изменения
+        renderMessagesForAdmin(editModalDialogId);
+      })
+      .catch(error => {
+        console.error("Ошибка при обновлении сообщения:", error);
+        alert("Ошибка при обновлении сообщения: " + error.message);
+      });
+  };
+}
 
-      update(ref(db), updates)
-        .then(() => {
-          console.log("Сообщение обновлено успешно!");
-          // Возможно, стоит перерендерить только это сообщение или дать визуальную обратную связь
-          // Пока просто выведем сообщение
-          alert("Изменения сохранены!");
-        })
-        .catch(error => {
-          console.error("Ошибка при сохранении сообщения:", error);
-          alert("Ошибка при сохранении изменений: " + error.message);
-        });
-    };
-  });
+// ====== Функции для управления модальным окном админки ======
+function showAdminModal(contentHtml) {
+  const modal = document.createElement('div');
+  modal.id = 'admin-overlay-modal'; // Уникальный ID для модалки админки
+  modal.style.cssText = `
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000; /* Выше основного модального окна */
+  `;
+  modal.innerHTML = contentHtml;
+  document.body.appendChild(modal);
+
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      closeAdminModal();
+    }
+  };
+}
+
+function closeAdminModal() {
+  const modal = document.getElementById('admin-overlay-modal');
+  if (modal) {
+    modal.remove();
+  }
 }
 
 // ====== Обработчики событий ======
