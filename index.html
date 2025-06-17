@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>work panel</title>
+  <style>
+    body {
+      font-family: -apple-system, SF Pro Text, Helvetica Neue, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f2f5;
+      color: #333;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+    h1 {
+      color: #1a1a1a;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .section {
+      margin-bottom: 25px;
+      padding: 15px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background-color: #fdfdfd;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #555;
+    }
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+      box-sizing: border-box;
+      margin-bottom: 15px;
+    }
+    .message-item {
+      display: flex;
+      flex-direction: column;
+      background-color: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      word-wrap: break-word;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .message-item .meta {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 5px;
+    }
+    .message-item .text {
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    .color-buttons button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-right: 5px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    .color-buttons .green {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .color-buttons .red {
+      background-color: #f44336;
+      color: white;
+    }
+    .color-buttons .reset {
+      background-color: #e0e0e0;
+      color: #333;
+    }
+    .save-btn {
+      background-color: #007aff;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      margin-top: 10px;
+      transition: background-color 0.2s;
+    }
+    .save-btn:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Админ-панель</h1>
+
+    <div class="section">
+      <label for="dialog-select">Выберите диалог:</label>
+      <select id="dialog-select">
+        <option value="">Загрузка диалогов...</option>
+      </select>
+    </div>
+
+    <div class="section" id="messages-admin-container">
+      <p>Выберите диалог, чтобы просмотреть сообщения.</p>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js"></script>
+
+  <script type="module" src="./script.js"></script>
+</body>
+</html>
