@@ -160,6 +160,18 @@
       text-align: left;
     }
 
+    .message-sender {
+      font-size: 13px;
+      font-weight: 500;
+      color: #000; /* Цвет по умолчанию, будет переопределяться JS для контраста */
+      margin-bottom: 4px;
+      opacity: 0.8;
+    }
+
+    .message-group.mine .message-sender {
+      color: #fff; /* Белый для своих сообщений */
+    }
+
     /* ====== Стили для контекстного меню (новые) ====== */
     .context-menu {
       position: absolute;
